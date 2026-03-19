@@ -201,12 +201,12 @@
             function extractCalendarData(doc) {
                 calendarData = [];
                 
-                // Find all calendar day entries - look for the calendar section
-                const calendarItems = doc.querySelectorAll('div[class*="RestaurantCalendar_day"]');
+                // Method 1: Look for calendar section with specific class patterns
+                const calendarItems = doc.querySelectorAll('[class*="Calendar"] [class*="day"], [class*="calendar"] [class*="Day"]');
                 
                 calendarItems.forEach(item => {
-                    const dateEl = item.querySelector('h3, [class*="date"], [class*="Date"]');
-                    const flavorEl = item.querySelector('a[href*="flavor-of-the-day"], [class*="flavor"], [class*="Flavor"]');
+                    const dateEl = item.querySelector('h3, h4, [class*="date"], [class*="Date"]');
+                    const flavorEl = item.querySelector('a[href*="flavor-of-the-day"]');
                     
                     if (dateEl && flavorEl) {
                         calendarData.push({
@@ -216,33 +216,60 @@
                     }
                 });
 
-                // Alternative: Parse from script data or structured content
+                // Method 2: Find all flavor links and extract date context
                 if (calendarData.length === 0) {
-                    // Try finding calendar entries by looking for date patterns
                     const allLinks = doc.querySelectorAll('a[href*="flavor-of-the-day"]');
-                    const seenFlavors = new Set();
+                    const seen = new Map();
                     
                     allLinks.forEach(link => {
                         const flavorName = link.textContent.trim();
-                        const parent = link.closest('div, li, section');
+                        if (!flavorName || flavorName.length < 3) return;
                         
-                        if (parent && flavorName && !seenFlavors.has(flavorName)) {
-                            // Look for date text nearby
-                            const parentText = parent.textContent;
-                            const dateMatch = parentText.match(/(Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[,\s-]*([\w\s,]+\d+)?/i);
+                        // Walk up to find date context
+                        let el = link.parentElement;
+                        let attempts = 0;
+                        while (el && attempts < 10) {
+                            const text = el.textContent || '';
+                            const dateMatch = text.match(/(Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[,\s\-]*(March|April|May|June|July|August|September|October|November|December|January|February)?\s*\d*/i);
                             
-                            if (dateMatch) {
-                                seenFlavors.add(flavorName);
+                            if (dateMatch && !seen.has(dateMatch[0])) {
+                                seen.set(dateMatch[0], true);
                                 calendarData.push({
                                     date: dateMatch[0].trim(),
                                     flavor: flavorName
                                 });
+                                break;
                             }
+                            el = el.parentElement;
+                            attempts++;
                         }
                     });
                 }
 
-                // Update calendar UI
+                // Method 3: Parse from __NEXT_DATA__ script if available (Next.js sites)
+                if (calendarData.length === 0) {
+                    const nextDataScript = doc.querySelector('script#__NEXT_DATA__');
+                    if (nextDataScript) {
+                        try {
+                            const data = JSON.parse(nextDataScript.textContent);
+                            const restaurant = data?.props?.pageProps?.restaurant;
+                            if (restaurant?.flavorsOfTheDay) {
+                                restaurant.flavorsOfTheDay.forEach(item => {
+                                    if (item.date && item.flavor?.name) {
+                                        calendarData.push({
+                                            date: new Date(item.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
+                                            flavor: item.flavor.name
+                                        });
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            console.log('Could not parse NEXT_DATA:', e);
+                        }
+                    }
+                }
+
+                console.log('Calendar data extracted:', calendarData);
                 renderCalendar();
             }
 
@@ -279,10 +306,8 @@
                 errorDiv.style.display = 'none';
                 flavorInfoDiv.style.display = 'block';
                 
-                // Show calendar toggle if we have data
-                if (calendarData.length > 0) {
-                    calendarToggle.classList.remove('hidden');
-                }
+                // Always show calendar toggle
+                calendarToggle.classList.remove('hidden');
             }
 
             function displayError(message) {
