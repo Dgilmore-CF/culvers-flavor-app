@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Culver's Flavor of the Day - Delavan, WI</title>
+    <title>Culver's Flavor of the Day</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,29 +12,48 @@
         body {
             font-family: 'Inter', sans-serif;
         }
-        /* Simple spinner animation */
         .spinner {
             border: 4px solid rgba(0, 0, 0, 0.1);
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            border-left-color: #0565b1; /* Culver's Blue */
+            border-left-color: #0565b1;
             animation: spin 1s ease-in-out infinite;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .location-item:hover {
+            background-color: #f3f4f6;
+        }
+        .location-item.selected {
+            background-color: #e0f2fe;
+            border-color: #005695;
+        }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
     <div class="w-full max-w-sm mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
         
         <!-- Header -->
         <div class="bg-[#005695] text-white p-4 text-center">
             <h1 class="text-xl font-bold">Flavor of the Day</h1>
-            <p class="text-sm opacity-90">Delavan, Wisconsin</p>
+            <p id="location-name" class="text-sm opacity-90">Finding nearest location...</p>
+        </div>
+
+        <!-- Location Selector -->
+        <div id="location-selector" class="hidden border-b border-gray-200">
+            <button id="change-location-btn" class="w-full px-4 py-2 text-sm text-[#005695] hover:bg-gray-50 flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                <span>Change Location</span>
+            </button>
+            <div id="location-list" class="hidden max-h-64 overflow-y-auto">
+            </div>
         </div>
 
         <!-- Content Area -->
@@ -43,13 +62,16 @@
             <!-- Loading State -->
             <div id="loading" class="flex flex-col items-center justify-center space-y-4">
                 <div class="spinner"></div>
-                <p class="text-gray-600">Finding today's flavor...</p>
+                <p id="loading-text" class="text-gray-600">Finding nearby Culver's...</p>
             </div>
 
             <!-- Error State -->
             <div id="error" class="hidden text-center">
                 <p class="text-red-600 font-semibold">Could not fetch the flavor.</p>
                 <p class="text-gray-500 text-sm">Please try again later or check the official website.</p>
+                <button id="retry-btn" class="mt-4 px-4 py-2 bg-[#005695] text-white rounded-lg text-sm hover:bg-[#004a80]">
+                    Try Again
+                </button>
             </div>
             
             <!-- Success State -->
@@ -58,21 +80,22 @@
                 <div class="aspect-w-1 aspect-h-1 mb-4">
                     <img id="flavor-image" src="" alt="Flavor of the Day" 
                          class="w-48 h-48 object-cover rounded-full mx-auto shadow-md border-4 border-gray-200"
-                         onerror="this.onerror=null; this.src='https://placehold.co/192x192/e0e0e0/757575?text=Image+Not+Found';">
+                         onerror="this.onerror=null; this.src='https://placehold.co/192x192/e0e0e0/757575?text=No+Image';">
                 </div>
                 <h2 id="flavor-name" class="text-2xl font-bold text-gray-800"></h2>
+                <p id="flavor-address" class="text-sm text-gray-500 mt-2"></p>
             </div>
 
-            <!-- Expandable Calendar Section -->
-            <div id="calendar-toggle" class="hidden mt-6">
-                <button class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200">
-                    <span class="text-sm font-semibold text-gray-700">Upcoming Flavors</span>
-                    <svg id="toggle-icon" class="w-5 h-5 text-gray-500 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <!-- Nearby Locations Section -->
+            <div id="nearby-toggle" class="hidden mt-6">
+                <button id="nearby-btn" class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200">
+                    <span class="text-sm font-semibold text-gray-700">Nearby Locations</span>
+                    <svg id="nearby-icon" class="w-5 h-5 text-gray-500 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
                 </button>
-                <div id="calendar-content" class="hidden mt-3 px-2">
-                    <div id="calendar-list" class="space-y-1">
+                <div id="nearby-content" class="hidden mt-3">
+                    <div id="nearby-list" class="space-y-2">
                     </div>
                 </div>
             </div>
@@ -80,7 +103,7 @@
 
         <!-- Footer -->
         <div class="bg-gray-50 p-3 text-center border-t border-gray-200">
-            <a href="https://www.culvers.com/restaurants/delavan" target="_blank" rel="noopener noreferrer" 
+            <a id="official-link" href="https://www.culvers.com/locator" target="_blank" rel="noopener noreferrer" 
                class="text-sm text-[#005695] hover:underline">
                 Visit Official Culver's Page
             </a>
@@ -92,307 +115,227 @@
         document.addEventListener('DOMContentLoaded', () => {
             // DOM Elements
             const loadingDiv = document.getElementById('loading');
+            const loadingText = document.getElementById('loading-text');
             const errorDiv = document.getElementById('error');
             const flavorInfoDiv = document.getElementById('flavor-info');
             const flavorDateEl = document.getElementById('flavor-date');
             const flavorImageEl = document.getElementById('flavor-image');
             const flavorNameEl = document.getElementById('flavor-name');
-            const calendarToggle = document.getElementById('calendar-toggle');
-            const calendarContent = document.getElementById('calendar-content');
-            const calendarList = document.getElementById('calendar-list');
-            const toggleIcon = document.getElementById('toggle-icon');
+            const flavorAddressEl = document.getElementById('flavor-address');
+            const locationNameEl = document.getElementById('location-name');
+            const locationSelector = document.getElementById('location-selector');
+            const changeLocationBtn = document.getElementById('change-location-btn');
+            const locationList = document.getElementById('location-list');
+            const nearbyToggle = document.getElementById('nearby-toggle');
+            const nearbyBtn = document.getElementById('nearby-btn');
+            const nearbyContent = document.getElementById('nearby-content');
+            const nearbyList = document.getElementById('nearby-list');
+            const nearbyIcon = document.getElementById('nearby-icon');
+            const officialLink = document.getElementById('official-link');
+            const retryBtn = document.getElementById('retry-btn');
 
-            // --- Configuration ---
-            const restaurantUrl = 'https://www.culvers.com/restaurants/delavan';
-            
-            // Multiple CORS proxies for fallback (codetabs works best currently)
-            const corsProxies = [
-                (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-                (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`
-            ];
+            // Configuration
+            const CORS_PROXY = (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`;
+            const DEFAULT_RADIUS = 80467; // 50 miles in meters
+            const DEFAULT_COORDS = { lat: 42.6333, lng: -88.6437 }; // Delavan, WI fallback
 
-            // Store calendar data
-            let calendarData = [];
+            // State
+            let nearbyLocations = [];
+            let selectedLocation = null;
+            let userCoords = null;
 
-            async function fetchWithFallback(url) {
-                let lastError = null;
+            // Initialize
+            init();
+
+            async function init() {
+                loadingText.textContent = 'Getting your location...';
                 
-                for (let i = 0; i < corsProxies.length; i++) {
-                    const proxyUrl = corsProxies[i](url);
-                    console.log(`Trying proxy ${i + 1}:`, proxyUrl);
-                    
-                    try {
-                        const response = await fetch(proxyUrl, { 
-                            headers: { 'Accept': 'text/html' }
-                        });
-                        
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}`);
-                        }
-                        
-                        const text = await response.text();
-                        if (text && text.includes('culvers')) {
-                            console.log(`Proxy ${i + 1} succeeded`);
-                            return text;
-                        }
-                        throw new Error('Invalid response content');
-                    } catch (err) {
-                        console.warn(`Proxy ${i + 1} failed:`, err.message);
-                        lastError = err;
-                    }
-                }
-                
-                throw lastError || new Error('All proxies failed');
-            }
-
-            async function getFlavorOfTheDay() {
                 try {
-                    const htmlContent = await fetchWithFallback(restaurantUrl);
-
-                    // Parse the HTML content from the proxy into a usable document
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(htmlContent, 'text/html');
-
-                    // Find the flavor name using the class hint
-                    const flavorNameElement = doc.querySelector('h2[class*="RestaurantDetails_containerRestaurantFlavorContentHeading"]');
-                    const flavorName = flavorNameElement ? flavorNameElement.textContent.trim() : null;
-
-                    // Get the current date and format it for display
-                    const today = new Date();
-                    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                    const flavorDate = today.toLocaleDateString('en-US', options);
-
-                    // Find the flavor image
-                    let flavorImageUrl = null;
-                    if (flavorNameElement) {
-                        const flavorSectionContainer = flavorNameElement.closest('div[class*="RestaurantDetails_containerRestaurantFlavor"]');
-                        if (flavorSectionContainer) {
-                            const imageElement = flavorSectionContainer.querySelector('img');
-                            if (imageElement) {
-                                flavorImageUrl = imageElement.src;
-                            }
-                        }
-                    }
-
-                    // Extract calendar data from the page
-                    extractCalendarData(doc);
-
-                    // Check if we successfully found the required information
-                    if (flavorName && flavorImageUrl) {
-                        displayFlavor(flavorName, flavorImageUrl, flavorDate);
-                    } else {
-                        console.error("Scraping failed. Found parts:", { flavorName, flavorImageUrl, flavorDate });
-                        throw new Error("Could not find flavor details on the page. The website layout may have changed.");
-                    }
-
+                    userCoords = await getUserLocation();
+                    console.log('User location:', userCoords);
                 } catch (err) {
-                    console.error("Fetch error:", err);
-                    let displayMessage = "Could not fetch the flavor.";
-                    if (err.message.includes("Network response") || err.message.includes("All proxies failed") || (err instanceof TypeError && err.message.includes('Failed to fetch'))) {
-                        displayMessage = "The data service may be down. Please try again later.";
-                    } else if (err.message.includes("website layout")) {
-                        displayMessage = "The Culver's website layout may have changed. Unable to find flavor details.";
-                    }
-                    displayError(displayMessage);
+                    console.warn('Geolocation failed, using default:', err.message);
+                    userCoords = DEFAULT_COORDS;
                 }
+                
+                loadingText.textContent = 'Finding nearby Culver\'s...';
+                await fetchNearbyLocations();
             }
 
-            function extractCalendarData(doc) {
-                calendarData = [];
-                
-                // Method 1: Parse from __NEXT_DATA__ script (Next.js sites embed all data here)
-                const nextDataScript = doc.querySelector('script#__NEXT_DATA__');
-                if (nextDataScript) {
-                    try {
-                        const data = JSON.parse(nextDataScript.textContent);
-                        const restaurant = data?.props?.pageProps?.restaurant;
-                        
-                        // Check for flavorsOfTheDay array
-                        if (restaurant?.flavorsOfTheDay && Array.isArray(restaurant.flavorsOfTheDay)) {
-                            restaurant.flavorsOfTheDay.forEach((item, index) => {
-                                const flavorName = item?.flavor?.name || item?.name || '';
-                                const dateStr = item?.date || item?.displayDate || '';
-                                
-                                if (flavorName) {
-                                    let displayDate = '';
-                                    if (index === 0) {
-                                        displayDate = 'Today';
-                                    } else if (index === 1) {
-                                        displayDate = 'Tomorrow';
-                                    } else if (dateStr) {
-                                        try {
-                                            displayDate = new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-                                        } catch (e) {
-                                            displayDate = dateStr;
-                                        }
-                                    }
-                                    
-                                    calendarData.push({
-                                        date: displayDate,
-                                        flavor: flavorName
-                                    });
-                                }
+            function getUserLocation() {
+                return new Promise((resolve, reject) => {
+                    if (!navigator.geolocation) {
+                        reject(new Error('Geolocation not supported'));
+                        return;
+                    }
+                    
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            resolve({
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude
                             });
-                        }
-                        
-                        // Also check pageProps directly for calendar data
-                        const pageProps = data?.props?.pageProps;
-                        if (calendarData.length === 0 && pageProps) {
-                            console.log('PageProps keys:', Object.keys(pageProps));
-                        }
-                    } catch (e) {
-                        console.log('Could not parse NEXT_DATA:', e);
-                    }
-                }
-
-                // Method 2: Extract from HTML by finding flavor links with date headers nearby
-                if (calendarData.length === 0) {
-                    // Look for h3 elements that contain day names followed by flavor links
-                    const headers = doc.querySelectorAll('h3');
-                    headers.forEach(h3 => {
-                        const headerText = h3.textContent.trim();
-                        const dayMatch = headerText.match(/^(Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i);
-                        
-                        if (dayMatch) {
-                            // Look for flavor link in the next sibling elements
-                            let sibling = h3.nextElementSibling;
-                            let attempts = 0;
-                            while (sibling && attempts < 5) {
-                                const flavorLink = sibling.querySelector ? sibling.querySelector('a[href*="flavor-of-the-day"]') : null;
-                                if (flavorLink && flavorLink.textContent.trim()) {
-                                    calendarData.push({
-                                        date: headerText,
-                                        flavor: flavorLink.textContent.trim()
-                                    });
-                                    break;
-                                }
-                                // Also check if the sibling itself is a flavor link
-                                if (sibling.href && sibling.href.includes('flavor-of-the-day') && sibling.textContent.trim()) {
-                                    calendarData.push({
-                                        date: headerText,
-                                        flavor: sibling.textContent.trim()
-                                    });
-                                    break;
-                                }
-                                sibling = sibling.nextElementSibling;
-                                attempts++;
-                            }
-                        }
-                    });
-                }
-
-                // Method 3: Find flavor links and extract flavor name from href
-                if (calendarData.length === 0) {
-                    const allLinks = doc.querySelectorAll('a[href*="flavor-of-the-day/"]');
-                    const seen = new Set();
-                    
-                    allLinks.forEach(link => {
-                        // Get flavor name from link text or href
-                        let flavorName = link.textContent.trim();
-                        if (!flavorName || flavorName.length < 3) {
-                            // Extract from href: /flavor-of-the-day/butter-pecan -> Butter Pecan
-                            const hrefMatch = link.href.match(/flavor-of-the-day\/([^/?]+)/);
-                            if (hrefMatch) {
-                                flavorName = hrefMatch[1].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                            }
-                        }
-                        
-                        if (flavorName && !seen.has(flavorName)) {
-                            seen.add(flavorName);
-                            
-                            // Find date context by walking up
-                            let el = link.parentElement;
-                            let foundDate = '';
-                            let attempts = 0;
-                            
-                            while (el && attempts < 8) {
-                                const text = el.textContent || '';
-                                const dateMatch = text.match(/(Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[^\n]*(March|April|May|June|July|August|September|October|November|December|January|February)?\s*\d*/i);
-                                
-                                if (dateMatch) {
-                                    foundDate = dateMatch[0].trim().split('\n')[0]; // Take first line only
-                                    break;
-                                }
-                                el = el.parentElement;
-                                attempts++;
-                            }
-                            
-                            if (foundDate) {
-                                calendarData.push({
-                                    date: foundDate,
-                                    flavor: flavorName
-                                });
-                            }
-                        }
-                    });
-                }
-
-                console.log('Calendar data extracted:', calendarData);
-                renderCalendar();
-            }
-
-            function renderCalendar() {
-                calendarList.innerHTML = '';
-                
-                if (calendarData.length === 0) {
-                    calendarList.innerHTML = '<p class="text-gray-500 text-sm text-center py-2">No upcoming flavors available</p>';
-                    return;
-                }
-
-                calendarData.forEach((entry, index) => {
-                    const item = document.createElement('div');
-                    item.className = `flex justify-between items-center py-2 ${index > 0 ? 'border-t border-gray-100' : ''}`;
-                    
-                    const isToday = entry.date.toLowerCase().includes('today');
-                    
-                    item.innerHTML = `
-                        <span class="text-sm ${isToday ? 'font-semibold text-[#005695]' : 'text-gray-600'}">${entry.date}</span>
-                        <span class="text-sm font-medium ${isToday ? 'text-[#005695]' : 'text-gray-800'}">${entry.flavor}</span>
-                    `;
-                    calendarList.appendChild(item);
+                        },
+                        (error) => {
+                            reject(error);
+                        },
+                        { timeout: 10000, maximumAge: 300000 }
+                    );
                 });
             }
 
-            function displayFlavor(name, imageUrl, date) {
-                flavorDateEl.textContent = date;
-                flavorImageEl.src = imageUrl;
-                flavorImageEl.alt = name;
-                flavorNameEl.textContent = name;
+            async function fetchNearbyLocations() {
+                const apiUrl = `https://www.culvers.com/api/locator/getLocations?lat=${userCoords.lat}&long=${userCoords.lng}&radius=${DEFAULT_RADIUS}&limit=10&layer=`;
+                
+                try {
+                    const response = await fetch(CORS_PROXY(apiUrl));
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const data = await response.json();
+                    console.log('Location API response:', data);
+                    
+                    if (data?.data?.geofences && data.data.geofences.length > 0) {
+                        nearbyLocations = data.data.geofences.map(loc => ({
+                            id: loc.metadata?.slug || loc.externalId,
+                            name: loc.description || 'Culver\'s',
+                            address: `${loc.metadata?.city || ''}, ${loc.metadata?.state || ''}`.trim(),
+                            fullAddress: `${loc.metadata?.street || ''}, ${loc.metadata?.city || ''}, ${loc.metadata?.state || ''}`,
+                            flavor: loc.metadata?.flavorOfDayName || 'Unknown',
+                            flavorSlug: loc.metadata?.flavorOfDaySlug || '',
+                            lat: loc.geometryCenter?.coordinates?.[1],
+                            lng: loc.geometryCenter?.coordinates?.[0],
+                            distance: calculateDistance(userCoords.lat, userCoords.lng, 
+                                loc.geometryCenter?.coordinates?.[1], 
+                                loc.geometryCenter?.coordinates?.[0])
+                        }));
+                        
+                        // Sort by distance
+                        nearbyLocations.sort((a, b) => a.distance - b.distance);
+                        
+                        // Select closest location
+                        selectLocation(nearbyLocations[0]);
+                        renderNearbyLocations();
+                    } else {
+                        throw new Error('No locations found nearby');
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch locations:', err);
+                    displayError('Could not find nearby Culver\'s locations. Please try again.');
+                }
+            }
 
-                // Hide loading spinner and show the flavor info
+            function calculateDistance(lat1, lon1, lat2, lon2) {
+                if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
+                const R = 3959; // Earth's radius in miles
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                          Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                return R * c;
+            }
+
+            function selectLocation(location) {
+                selectedLocation = location;
+                
+                // Update header
+                locationNameEl.textContent = location.name;
+                
+                // Update flavor display
+                const today = new Date();
+                const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                flavorDateEl.textContent = today.toLocaleDateString('en-US', dateOptions);
+                flavorNameEl.textContent = location.flavor;
+                flavorAddressEl.textContent = location.fullAddress;
+                
+                // Set flavor image
+                if (location.flavorSlug) {
+                    flavorImageEl.src = `https://cdn.culvers.com/menu-item-detail/${location.flavorSlug}.png`;
+                } else {
+                    flavorImageEl.src = 'https://placehold.co/192x192/e0e0e0/757575?text=No+Image';
+                }
+                
+                // Update official link
+                if (location.id) {
+                    officialLink.href = `https://www.culvers.com/restaurants/${location.id}`;
+                }
+                
+                // Show UI
                 loadingDiv.style.display = 'none';
                 errorDiv.style.display = 'none';
                 flavorInfoDiv.style.display = 'block';
+                locationSelector.classList.remove('hidden');
+                nearbyToggle.classList.remove('hidden');
                 
-                // Always show calendar toggle
-                calendarToggle.classList.remove('hidden');
+                // Save to localStorage
+                localStorage.setItem('selectedCulversLocation', JSON.stringify(location));
+            }
+
+            function renderNearbyLocations() {
+                nearbyList.innerHTML = '';
+                
+                nearbyLocations.forEach((loc, index) => {
+                    const isSelected = selectedLocation?.id === loc.id;
+                    const item = document.createElement('div');
+                    item.className = `location-item p-3 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'selected border-[#005695]' : 'border-gray-200'}`;
+                    item.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-semibold text-gray-800 text-sm">${loc.name}</p>
+                                <p class="text-xs text-gray-500">${loc.address}</p>
+                            </div>
+                            <span class="text-xs text-gray-400">${loc.distance.toFixed(1)} mi</span>
+                        </div>
+                        <p class="text-sm text-[#005695] mt-1 font-medium">${loc.flavor}</p>
+                    `;
+                    item.addEventListener('click', () => {
+                        selectLocation(loc);
+                        renderNearbyLocations();
+                        nearbyContent.classList.add('hidden');
+                        nearbyIcon.style.transform = 'rotate(0deg)';
+                    });
+                    nearbyList.appendChild(item);
+                });
             }
 
             function displayError(message) {
                 const errorMessageEl = errorDiv.querySelector('p:first-child');
-                errorMessageEl.textContent = message || "Could not fetch the flavor.";
+                errorMessageEl.textContent = message || 'Could not fetch the flavor.';
                 
-                // Hide loading spinner and show the error message
                 loadingDiv.style.display = 'none';
                 flavorInfoDiv.style.display = 'none';
                 errorDiv.style.display = 'block';
             }
 
-            // Calendar toggle functionality
-            calendarToggle.addEventListener('click', () => {
-                const isExpanded = !calendarContent.classList.contains('hidden');
-                
-                if (isExpanded) {
-                    calendarContent.classList.add('hidden');
-                    toggleIcon.style.transform = 'rotate(0deg)';
-                } else {
-                    calendarContent.classList.remove('hidden');
-                    toggleIcon.style.transform = 'rotate(180deg)';
+            // Event listeners
+            nearbyBtn.addEventListener('click', () => {
+                const isExpanded = !nearbyContent.classList.contains('hidden');
+                nearbyContent.classList.toggle('hidden');
+                nearbyIcon.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(180deg)';
+            });
+
+            changeLocationBtn.addEventListener('click', () => {
+                locationList.classList.toggle('hidden');
+                if (!locationList.classList.contains('hidden')) {
+                    locationList.innerHTML = nearbyList.innerHTML;
                 }
             });
 
-            // Initial fetch
-            getFlavorOfTheDay();
+            retryBtn.addEventListener('click', () => {
+                errorDiv.style.display = 'none';
+                loadingDiv.style.display = 'flex';
+                init();
+            });
+
+            // Check for saved location preference
+            const savedLocation = localStorage.getItem('selectedCulversLocation');
+            if (savedLocation) {
+                try {
+                    const parsed = JSON.parse(savedLocation);
+                    console.log('Found saved location:', parsed.name);
+                } catch (e) {}
+            }
         });
     </script>
 </body>
