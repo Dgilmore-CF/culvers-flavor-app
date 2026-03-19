@@ -86,8 +86,23 @@
                 <p id="flavor-address" class="text-sm text-gray-500 mt-2"></p>
             </div>
 
+            <!-- Upcoming Flavors Calendar Section -->
+            <div id="calendar-toggle" class="hidden mt-6">
+                <button id="calendar-btn" class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200">
+                    <span class="text-sm font-semibold text-gray-700">Upcoming Flavors</span>
+                    <svg id="calendar-icon" class="w-5 h-5 text-gray-500 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+                <div id="calendar-content" class="hidden mt-3 px-1">
+                    <div id="calendar-list" class="space-y-1">
+                        <p class="text-gray-400 text-sm text-center py-2">Loading...</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Nearby Locations Section -->
-            <div id="nearby-toggle" class="hidden mt-6">
+            <div id="nearby-toggle" class="hidden mt-4">
                 <button id="nearby-btn" class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200">
                     <span class="text-sm font-semibold text-gray-700">Nearby Locations</span>
                     <svg id="nearby-icon" class="w-5 h-5 text-gray-500 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -133,6 +148,11 @@
             const nearbyIcon = document.getElementById('nearby-icon');
             const officialLink = document.getElementById('official-link');
             const retryBtn = document.getElementById('retry-btn');
+            const calendarToggle = document.getElementById('calendar-toggle');
+            const calendarBtn = document.getElementById('calendar-btn');
+            const calendarContent = document.getElementById('calendar-content');
+            const calendarList = document.getElementById('calendar-list');
+            const calendarIcon = document.getElementById('calendar-icon');
 
             // Configuration
             const CORS_PROXY = (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`;
@@ -143,6 +163,7 @@
             let nearbyLocations = [];
             let selectedLocation = null;
             let userCoords = null;
+            let calendarData = [];
 
             // Initialize
             init();
@@ -267,6 +288,10 @@
                 flavorInfoDiv.style.display = 'block';
                 locationSelector.classList.remove('hidden');
                 nearbyToggle.classList.remove('hidden');
+                calendarToggle.classList.remove('hidden');
+                
+                // Fetch calendar data for this location
+                fetchCalendarData(location.id);
                 
                 // Save to localStorage
                 localStorage.setItem('selectedCulversLocation', JSON.stringify(location));
@@ -299,6 +324,127 @@
                 });
             }
 
+            async function fetchCalendarData(locationId) {
+                calendarData = [];
+                calendarList.innerHTML = '<p class="text-gray-400 text-sm text-center py-2">Loading...</p>';
+                
+                if (!locationId) {
+                    renderCalendar();
+                    return;
+                }
+                
+                const restaurantUrl = `https://www.culvers.com/restaurants/${locationId}`;
+                
+                try {
+                    const response = await fetch(CORS_PROXY(restaurantUrl));
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const html = await response.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    // Try to extract from __NEXT_DATA__
+                    const nextDataScript = doc.querySelector('script#__NEXT_DATA__');
+                    if (nextDataScript) {
+                        try {
+                            const data = JSON.parse(nextDataScript.textContent);
+                            const restaurant = data?.props?.pageProps?.restaurant;
+                            
+                            if (restaurant?.flavorsOfTheDay && Array.isArray(restaurant.flavorsOfTheDay)) {
+                                restaurant.flavorsOfTheDay.forEach((item, index) => {
+                                    const flavorName = item?.flavor?.name || item?.name || '';
+                                    const dateStr = item?.date || '';
+                                    
+                                    if (flavorName) {
+                                        let displayDate = '';
+                                        if (index === 0) {
+                                            displayDate = 'Today';
+                                        } else if (index === 1) {
+                                            displayDate = 'Tomorrow';
+                                        } else if (dateStr) {
+                                            try {
+                                                const d = new Date(dateStr);
+                                                displayDate = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                                            } catch (e) {
+                                                displayDate = dateStr;
+                                            }
+                                        }
+                                        
+                                        calendarData.push({ date: displayDate, flavor: flavorName });
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            console.log('Could not parse NEXT_DATA:', e);
+                        }
+                    }
+                    
+                    // Fallback: extract from HTML links
+                    if (calendarData.length === 0) {
+                        const allLinks = doc.querySelectorAll('a[href*="flavor-of-the-day/"]');
+                        const seen = new Set();
+                        
+                        allLinks.forEach(link => {
+                            let flavorName = link.textContent.trim();
+                            if (!flavorName || flavorName.length < 3) {
+                                const hrefMatch = link.href.match(/flavor-of-the-day\/([^/?]+)/);
+                                if (hrefMatch) {
+                                    flavorName = hrefMatch[1].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                                }
+                            }
+                            
+                            if (flavorName && !seen.has(flavorName)) {
+                                seen.add(flavorName);
+                                let el = link.parentElement;
+                                let foundDate = '';
+                                let attempts = 0;
+                                
+                                while (el && attempts < 8) {
+                                    const text = el.textContent || '';
+                                    const dateMatch = text.match(/(Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[^\n]*(\d+)?/i);
+                                    if (dateMatch) {
+                                        foundDate = dateMatch[0].trim().split('\n')[0];
+                                        break;
+                                    }
+                                    el = el.parentElement;
+                                    attempts++;
+                                }
+                                
+                                if (foundDate) {
+                                    calendarData.push({ date: foundDate, flavor: flavorName });
+                                }
+                            }
+                        });
+                    }
+                    
+                    console.log('Calendar data extracted:', calendarData);
+                } catch (err) {
+                    console.error('Failed to fetch calendar:', err);
+                }
+                
+                renderCalendar();
+            }
+
+            function renderCalendar() {
+                calendarList.innerHTML = '';
+                
+                if (calendarData.length === 0) {
+                    calendarList.innerHTML = '<p class="text-gray-500 text-sm text-center py-2">No upcoming flavors available</p>';
+                    return;
+                }
+                
+                calendarData.forEach((entry, index) => {
+                    const item = document.createElement('div');
+                    item.className = `flex justify-between items-center py-2 ${index > 0 ? 'border-t border-gray-100' : ''}`;
+                    const isToday = entry.date.toLowerCase().includes('today');
+                    item.innerHTML = `
+                        <span class="text-sm ${isToday ? 'font-semibold text-[#005695]' : 'text-gray-600'}">${entry.date}</span>
+                        <span class="text-sm font-medium ${isToday ? 'text-[#005695]' : 'text-gray-800'}">${entry.flavor}</span>
+                    `;
+                    calendarList.appendChild(item);
+                });
+            }
+
             function displayError(message) {
                 const errorMessageEl = errorDiv.querySelector('p:first-child');
                 errorMessageEl.textContent = message || 'Could not fetch the flavor.';
@@ -309,6 +455,12 @@
             }
 
             // Event listeners
+            calendarBtn.addEventListener('click', () => {
+                const isExpanded = !calendarContent.classList.contains('hidden');
+                calendarContent.classList.toggle('hidden');
+                calendarIcon.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(180deg)';
+            });
+
             nearbyBtn.addEventListener('click', () => {
                 const isExpanded = !nearbyContent.classList.contains('hidden');
                 nearbyContent.classList.toggle('hidden');
