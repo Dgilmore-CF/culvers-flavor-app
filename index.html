@@ -105,11 +105,10 @@
             // --- Configuration ---
             const restaurantUrl = 'https://www.culvers.com/restaurants/delavan';
             
-            // Multiple CORS proxies for fallback
+            // Multiple CORS proxies for fallback (codetabs works best currently)
             const corsProxies = [
-                (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-                (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-                (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+                (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+                (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`
             ];
 
             // Store calendar data
