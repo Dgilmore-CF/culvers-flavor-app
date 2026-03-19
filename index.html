@@ -200,72 +200,131 @@
             function extractCalendarData(doc) {
                 calendarData = [];
                 
-                // Method 1: Look for calendar section with specific class patterns
-                const calendarItems = doc.querySelectorAll('[class*="Calendar"] [class*="day"], [class*="calendar"] [class*="Day"]');
-                
-                calendarItems.forEach(item => {
-                    const dateEl = item.querySelector('h3, h4, [class*="date"], [class*="Date"]');
-                    const flavorEl = item.querySelector('a[href*="flavor-of-the-day"]');
-                    
-                    if (dateEl && flavorEl) {
-                        calendarData.push({
-                            date: dateEl.textContent.trim(),
-                            flavor: flavorEl.textContent.trim()
-                        });
-                    }
-                });
-
-                // Method 2: Find all flavor links and extract date context
-                if (calendarData.length === 0) {
-                    const allLinks = doc.querySelectorAll('a[href*="flavor-of-the-day"]');
-                    const seen = new Map();
-                    
-                    allLinks.forEach(link => {
-                        const flavorName = link.textContent.trim();
-                        if (!flavorName || flavorName.length < 3) return;
+                // Method 1: Parse from __NEXT_DATA__ script (Next.js sites embed all data here)
+                const nextDataScript = doc.querySelector('script#__NEXT_DATA__');
+                if (nextDataScript) {
+                    try {
+                        const data = JSON.parse(nextDataScript.textContent);
+                        const restaurant = data?.props?.pageProps?.restaurant;
                         
-                        // Walk up to find date context
-                        let el = link.parentElement;
-                        let attempts = 0;
-                        while (el && attempts < 10) {
-                            const text = el.textContent || '';
-                            const dateMatch = text.match(/(Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[,\s\-]*(March|April|May|June|July|August|September|October|November|December|January|February)?\s*\d*/i);
-                            
-                            if (dateMatch && !seen.has(dateMatch[0])) {
-                                seen.set(dateMatch[0], true);
-                                calendarData.push({
-                                    date: dateMatch[0].trim(),
-                                    flavor: flavorName
-                                });
-                                break;
+                        // Check for flavorsOfTheDay array
+                        if (restaurant?.flavorsOfTheDay && Array.isArray(restaurant.flavorsOfTheDay)) {
+                            restaurant.flavorsOfTheDay.forEach((item, index) => {
+                                const flavorName = item?.flavor?.name || item?.name || '';
+                                const dateStr = item?.date || item?.displayDate || '';
+                                
+                                if (flavorName) {
+                                    let displayDate = '';
+                                    if (index === 0) {
+                                        displayDate = 'Today';
+                                    } else if (index === 1) {
+                                        displayDate = 'Tomorrow';
+                                    } else if (dateStr) {
+                                        try {
+                                            displayDate = new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+                                        } catch (e) {
+                                            displayDate = dateStr;
+                                        }
+                                    }
+                                    
+                                    calendarData.push({
+                                        date: displayDate,
+                                        flavor: flavorName
+                                    });
+                                }
+                            });
+                        }
+                        
+                        // Also check pageProps directly for calendar data
+                        const pageProps = data?.props?.pageProps;
+                        if (calendarData.length === 0 && pageProps) {
+                            console.log('PageProps keys:', Object.keys(pageProps));
+                        }
+                    } catch (e) {
+                        console.log('Could not parse NEXT_DATA:', e);
+                    }
+                }
+
+                // Method 2: Extract from HTML by finding flavor links with date headers nearby
+                if (calendarData.length === 0) {
+                    // Look for h3 elements that contain day names followed by flavor links
+                    const headers = doc.querySelectorAll('h3');
+                    headers.forEach(h3 => {
+                        const headerText = h3.textContent.trim();
+                        const dayMatch = headerText.match(/^(Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i);
+                        
+                        if (dayMatch) {
+                            // Look for flavor link in the next sibling elements
+                            let sibling = h3.nextElementSibling;
+                            let attempts = 0;
+                            while (sibling && attempts < 5) {
+                                const flavorLink = sibling.querySelector ? sibling.querySelector('a[href*="flavor-of-the-day"]') : null;
+                                if (flavorLink && flavorLink.textContent.trim()) {
+                                    calendarData.push({
+                                        date: headerText,
+                                        flavor: flavorLink.textContent.trim()
+                                    });
+                                    break;
+                                }
+                                // Also check if the sibling itself is a flavor link
+                                if (sibling.href && sibling.href.includes('flavor-of-the-day') && sibling.textContent.trim()) {
+                                    calendarData.push({
+                                        date: headerText,
+                                        flavor: sibling.textContent.trim()
+                                    });
+                                    break;
+                                }
+                                sibling = sibling.nextElementSibling;
+                                attempts++;
                             }
-                            el = el.parentElement;
-                            attempts++;
                         }
                     });
                 }
 
-                // Method 3: Parse from __NEXT_DATA__ script if available (Next.js sites)
+                // Method 3: Find flavor links and extract flavor name from href
                 if (calendarData.length === 0) {
-                    const nextDataScript = doc.querySelector('script#__NEXT_DATA__');
-                    if (nextDataScript) {
-                        try {
-                            const data = JSON.parse(nextDataScript.textContent);
-                            const restaurant = data?.props?.pageProps?.restaurant;
-                            if (restaurant?.flavorsOfTheDay) {
-                                restaurant.flavorsOfTheDay.forEach(item => {
-                                    if (item.date && item.flavor?.name) {
-                                        calendarData.push({
-                                            date: new Date(item.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
-                                            flavor: item.flavor.name
-                                        });
-                                    }
+                    const allLinks = doc.querySelectorAll('a[href*="flavor-of-the-day/"]');
+                    const seen = new Set();
+                    
+                    allLinks.forEach(link => {
+                        // Get flavor name from link text or href
+                        let flavorName = link.textContent.trim();
+                        if (!flavorName || flavorName.length < 3) {
+                            // Extract from href: /flavor-of-the-day/butter-pecan -> Butter Pecan
+                            const hrefMatch = link.href.match(/flavor-of-the-day\/([^/?]+)/);
+                            if (hrefMatch) {
+                                flavorName = hrefMatch[1].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                            }
+                        }
+                        
+                        if (flavorName && !seen.has(flavorName)) {
+                            seen.add(flavorName);
+                            
+                            // Find date context by walking up
+                            let el = link.parentElement;
+                            let foundDate = '';
+                            let attempts = 0;
+                            
+                            while (el && attempts < 8) {
+                                const text = el.textContent || '';
+                                const dateMatch = text.match(/(Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[^\n]*(March|April|May|June|July|August|September|October|November|December|January|February)?\s*\d*/i);
+                                
+                                if (dateMatch) {
+                                    foundDate = dateMatch[0].trim().split('\n')[0]; // Take first line only
+                                    break;
+                                }
+                                el = el.parentElement;
+                                attempts++;
+                            }
+                            
+                            if (foundDate) {
+                                calendarData.push({
+                                    date: foundDate,
+                                    flavor: flavorName
                                 });
                             }
-                        } catch (e) {
-                            console.log('Could not parse NEXT_DATA:', e);
                         }
-                    }
+                    });
                 }
 
                 console.log('Calendar data extracted:', calendarData);
