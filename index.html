@@ -270,14 +270,20 @@
                 flavorNameEl.textContent = location.flavor;
                 flavorAddressEl.textContent = location.fullAddress;
                 
-                // Set flavor image - flavorSlug is like "devils-food-cake", need to format as "img-Devils-Food-Cake"
+                // Set flavor image - flavorSlug may already be formatted like "img-Devils-Food-Cake.png"
                 if (location.flavorSlug) {
-                    // Convert slug to image format: devils-food-cake -> Devils-Food-Cake
-                    const imgName = location.flavorSlug
-                        .split('-')
-                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                        .join('-');
-                    flavorImageEl.src = `https://cdn.culvers.com/menu-item-detail/img-${imgName}.png`;
+                    let imgUrl = location.flavorSlug;
+                    // If it's already a full filename with img- prefix and .png, use as-is
+                    if (imgUrl.startsWith('img-') && imgUrl.endsWith('.png')) {
+                        flavorImageEl.src = `https://cdn.culvers.com/menu-item-detail/${imgUrl}`;
+                    } else if (imgUrl.endsWith('.png')) {
+                        // Has .png but no img- prefix
+                        flavorImageEl.src = `https://cdn.culvers.com/menu-item-detail/${imgUrl}`;
+                    } else {
+                        // Just a slug like "devils-food-cake" - try the slug directly
+                        flavorImageEl.src = `https://cdn.culvers.com/menu-item-detail/${imgUrl}.png`;
+                    }
+                    console.log('Flavor slug:', location.flavorSlug, '-> Image URL:', flavorImageEl.src);
                 } else {
                     flavorImageEl.src = 'https://placehold.co/192x192/e0e0e0/757575?text=No+Image';
                 }
