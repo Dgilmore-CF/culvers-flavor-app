@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Culver's Flavor of the Day - Delavan, WI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Simple spinner animation */
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #0565b1; /* Culver's Blue */
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+    <div class="w-full max-w-sm mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
+        
+        <!-- Header -->
+        <div class="bg-[#005695] text-white p-4 text-center">
+            <h1 class="text-xl font-bold">Flavor of the Day</h1>
+            <p class="text-sm opacity-90">Delavan, Wisconsin</p>
+        </div>
+
+        <!-- Content Area -->
+        <div id="content" class="p-6">
+            
+            <!-- Loading State -->
+            <div id="loading" class="flex flex-col items-center justify-center space-y-4">
+                <div class="spinner"></div>
+                <p class="text-gray-600">Finding today's flavor...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="error" class="hidden text-center">
+                <p class="text-red-600 font-semibold">Could not fetch the flavor.</p>
+                <p class="text-gray-500 text-sm">Please try again later or check the official website.</p>
+            </div>
+            
+            <!-- Success State -->
+            <div id="flavor-info" class="hidden text-center">
+                <p id="flavor-date" class="text-base font-bold text-gray-700 mb-3"></p>
+                <div class="aspect-w-1 aspect-h-1 mb-4">
+                    <img id="flavor-image" src="" alt="Flavor of the Day" 
+                         class="w-48 h-48 object-cover rounded-full mx-auto shadow-md border-4 border-gray-200"
+                         onerror="this.onerror=null; this.src='https://placehold.co/192x192/e0e0e0/757575?text=Image+Not+Found';">
+                </div>
+                <h2 id="flavor-name" class="text-2xl font-bold text-gray-800"></h2>
+            </div>
+
+            <!-- Expandable Calendar Section -->
+            <div id="calendar-toggle" class="hidden mt-6">
+                <button class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200">
+                    <span class="text-sm font-semibold text-gray-700">Upcoming Flavors</span>
+                    <svg id="toggle-icon" class="w-5 h-5 text-gray-500 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+                <div id="calendar-content" class="hidden mt-3 px-2">
+                    <div id="calendar-list" class="space-y-1">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="bg-gray-50 p-3 text-center border-t border-gray-200">
+            <a href="https://www.culvers.com/restaurants/delavan" target="_blank" rel="noopener noreferrer" 
+               class="text-sm text-[#005695] hover:underline">
+                Visit Official Culver's Page
+            </a>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const loadingDiv = document.getElementById('loading');
+            const errorDiv = document.getElementById('error');
+            const flavorInfoDiv = document.getElementById('flavor-info');
+            const flavorDateEl = document.getElementById('flavor-date');
+            const flavorImageEl = document.getElementById('flavor-image');
+            const flavorNameEl = document.getElementById('flavor-name');
+            const calendarToggle = document.getElementById('calendar-toggle');
+            const calendarContent = document.getElementById('calendar-content');
+            const calendarList = document.getElementById('calendar-list');
+            const toggleIcon = document.getElementById('toggle-icon');
+
+            // --- Configuration ---
+            const restaurantUrl = 'https://www.culvers.com/restaurants/delavan';
+            
+            // Multiple CORS proxies for fallback
+            const corsProxies = [
+                (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+                (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+            ];
+
+            // Store calendar data
+            let calendarData = [];
+
+            async function fetchWithFallback(url) {
+                let lastError = null;
+                
+                for (let i = 0; i < corsProxies.length; i++) {
+                    const proxyUrl = corsProxies[i](url);
+                    console.log(`Trying proxy ${i + 1}:`, proxyUrl);
+                    
+                    try {
+                        const response = await fetch(proxyUrl, { 
+                            headers: { 'Accept': 'text/html' }
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                        
+                        const text = await response.text();
+                        if (text && text.includes('culvers')) {
+                            console.log(`Proxy ${i + 1} succeeded`);
+                            return text;
+                        }
+                        throw new Error('Invalid response content');
+                    } catch (err) {
+                        console.warn(`Proxy ${i + 1} failed:`, err.message);
+                        lastError = err;
+                    }
+                }
+                
+                throw lastError || new Error('All proxies failed');
+            }
+
+            async function getFlavorOfTheDay() {
+                try {
+                    const htmlContent = await fetchWithFallback(restaurantUrl);
+
+                    // Parse the HTML content from the proxy into a usable document
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(htmlContent, 'text/html');
+
+                    // Find the flavor name using the class hint
+                    const flavorNameElement = doc.querySelector('h2[class*="RestaurantDetails_containerRestaurantFlavorContentHeading"]');
+                    const flavorName = flavorNameElement ? flavorNameElement.textContent.trim() : null;
+
+                    // Get the current date and format it for display
+                    const today = new Date();
+                    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                    const flavorDate = today.toLocaleDateString('en-US', options);
+
+                    // Find the flavor image
+                    let flavorImageUrl = null;
+                    if (flavorNameElement) {
+                        const flavorSectionContainer = flavorNameElement.closest('div[class*="RestaurantDetails_containerRestaurantFlavor"]');
+                        if (flavorSectionContainer) {
+                            const imageElement = flavorSectionContainer.querySelector('img');
+                            if (imageElement) {
+                                flavorImageUrl = imageElement.src;
+                            }
+                        }
+                    }
+
+                    // Extract calendar data from the page
+                    extractCalendarData(doc);
+
+                    // Check if we successfully found the required information
+                    if (flavorName && flavorImageUrl) {
+                        displayFlavor(flavorName, flavorImageUrl, flavorDate);
+                    } else {
+                        console.error("Scraping failed. Found parts:", { flavorName, flavorImageUrl, flavorDate });
+                        throw new Error("Could not find flavor details on the page. The website layout may have changed.");
+                    }
+
+                } catch (err) {
+                    console.error("Fetch error:", err);
+                    let displayMessage = "Could not fetch the flavor.";
+                    if (err.message.includes("Network response") || err.message.includes("All proxies failed") || (err instanceof TypeError && err.message.includes('Failed to fetch'))) {
+                        displayMessage = "The data service may be down. Please try again later.";
+                    } else if (err.message.includes("website layout")) {
+                        displayMessage = "The Culver's website layout may have changed. Unable to find flavor details.";
+                    }
+                    displayError(displayMessage);
+                }
+            }
+
+            function extractCalendarData(doc) {
+                calendarData = [];
+                
+                // Find all calendar day entries - look for the calendar section
+                const calendarItems = doc.querySelectorAll('div[class*="RestaurantCalendar_day"]');
+                
+                calendarItems.forEach(item => {
+                    const dateEl = item.querySelector('h3, [class*="date"], [class*="Date"]');
+                    const flavorEl = item.querySelector('a[href*="flavor-of-the-day"], [class*="flavor"], [class*="Flavor"]');
+                    
+                    if (dateEl && flavorEl) {
+                        calendarData.push({
+                            date: dateEl.textContent.trim(),
+                            flavor: flavorEl.textContent.trim()
+                        });
+                    }
+                });
+
+                // Alternative: Parse from script data or structured content
+                if (calendarData.length === 0) {
+                    // Try finding calendar entries by looking for date patterns
+                    const allLinks = doc.querySelectorAll('a[href*="flavor-of-the-day"]');
+                    const seenFlavors = new Set();
+                    
+                    allLinks.forEach(link => {
+                        const flavorName = link.textContent.trim();
+                        const parent = link.closest('div, li, section');
+                        
+                        if (parent && flavorName && !seenFlavors.has(flavorName)) {
+                            // Look for date text nearby
+                            const parentText = parent.textContent;
+                            const dateMatch = parentText.match(/(Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[,\s-]*([\w\s,]+\d+)?/i);
+                            
+                            if (dateMatch) {
+                                seenFlavors.add(flavorName);
+                                calendarData.push({
+                                    date: dateMatch[0].trim(),
+                                    flavor: flavorName
+                                });
+                            }
+                        }
+                    });
+                }
+
+                // Update calendar UI
+                renderCalendar();
+            }
+
+            function renderCalendar() {
+                calendarList.innerHTML = '';
+                
+                if (calendarData.length === 0) {
+                    calendarList.innerHTML = '<p class="text-gray-500 text-sm text-center py-2">No upcoming flavors available</p>';
+                    return;
+                }
+
+                calendarData.forEach((entry, index) => {
+                    const item = document.createElement('div');
+                    item.className = `flex justify-between items-center py-2 ${index > 0 ? 'border-t border-gray-100' : ''}`;
+                    
+                    const isToday = entry.date.toLowerCase().includes('today');
+                    
+                    item.innerHTML = `
+                        <span class="text-sm ${isToday ? 'font-semibold text-[#005695]' : 'text-gray-600'}">${entry.date}</span>
+                        <span class="text-sm font-medium ${isToday ? 'text-[#005695]' : 'text-gray-800'}">${entry.flavor}</span>
+                    `;
+                    calendarList.appendChild(item);
+                });
+            }
+
+            function displayFlavor(name, imageUrl, date) {
+                flavorDateEl.textContent = date;
+                flavorImageEl.src = imageUrl;
+                flavorImageEl.alt = name;
+                flavorNameEl.textContent = name;
+
+                // Hide loading spinner and show the flavor info
+                loadingDiv.style.display = 'none';
+                errorDiv.style.display = 'none';
+                flavorInfoDiv.style.display = 'block';
+                
+                // Show calendar toggle if we have data
+                if (calendarData.length > 0) {
+                    calendarToggle.classList.remove('hidden');
+                }
+            }
+
+            function displayError(message) {
+                const errorMessageEl = errorDiv.querySelector('p:first-child');
+                errorMessageEl.textContent = message || "Could not fetch the flavor.";
+                
+                // Hide loading spinner and show the error message
+                loadingDiv.style.display = 'none';
+                flavorInfoDiv.style.display = 'none';
+                errorDiv.style.display = 'block';
+            }
+
+            // Calendar toggle functionality
+            calendarToggle.addEventListener('click', () => {
+                const isExpanded = !calendarContent.classList.contains('hidden');
+                
+                if (isExpanded) {
+                    calendarContent.classList.add('hidden');
+                    toggleIcon.style.transform = 'rotate(0deg)';
+                } else {
+                    calendarContent.classList.remove('hidden');
+                    toggleIcon.style.transform = 'rotate(180deg)';
+                }
+            });
+
+            // Initial fetch
+            getFlavorOfTheDay();
+        });
+    </script>
+</body>
+</html>
