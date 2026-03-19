@@ -270,9 +270,14 @@
                 flavorNameEl.textContent = location.flavor;
                 flavorAddressEl.textContent = location.fullAddress;
                 
-                // Set flavor image
+                // Set flavor image - flavorSlug is like "devils-food-cake", need to format as "img-Devils-Food-Cake"
                 if (location.flavorSlug) {
-                    flavorImageEl.src = `https://cdn.culvers.com/menu-item-detail/${location.flavorSlug}.png`;
+                    // Convert slug to image format: devils-food-cake -> Devils-Food-Cake
+                    const imgName = location.flavorSlug
+                        .split('-')
+                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                        .join('-');
+                    flavorImageEl.src = `https://cdn.culvers.com/menu-item-detail/img-${imgName}.png`;
                 } else {
                     flavorImageEl.src = 'https://placehold.co/192x192/e0e0e0/757575?text=No+Image';
                 }
@@ -379,39 +384,49 @@
                         }
                     }
                     
-                    // Fallback: extract from HTML links
+                    // Fallback: extract from HTML - look for h3 headers with day names
                     if (calendarData.length === 0) {
-                        const allLinks = doc.querySelectorAll('a[href*="flavor-of-the-day/"]');
-                        const seen = new Set();
+                        const headers = doc.querySelectorAll('h3');
+                        const seenDates = new Set();
                         
-                        allLinks.forEach(link => {
-                            let flavorName = link.textContent.trim();
-                            if (!flavorName || flavorName.length < 3) {
-                                const hrefMatch = link.href.match(/flavor-of-the-day\/([^/?]+)/);
-                                if (hrefMatch) {
-                                    flavorName = hrefMatch[1].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                                }
-                            }
+                        headers.forEach(h3 => {
+                            const headerText = h3.textContent.trim();
+                            // Match date patterns like "Today - Thursday, March 19" or "Monday, March 23"
+                            const dateMatch = headerText.match(/^(Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)(?:\s*-\s*)?(?:,?\s*(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday))?(?:,?\s*(January|February|March|April|May|June|July|August|September|October|November|December)\s*\d+)?/i);
                             
-                            if (flavorName && !seen.has(flavorName)) {
-                                seen.add(flavorName);
-                                let el = link.parentElement;
-                                let foundDate = '';
-                                let attempts = 0;
-                                
-                                while (el && attempts < 8) {
-                                    const text = el.textContent || '';
-                                    const dateMatch = text.match(/(Today|Tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[^\n]*(\d+)?/i);
-                                    if (dateMatch) {
-                                        foundDate = dateMatch[0].trim().split('\n')[0];
-                                        break;
-                                    }
-                                    el = el.parentElement;
-                                    attempts++;
+                            if (dateMatch) {
+                                // Clean up the date - just keep "Today", "Tomorrow", or "Weekday, Month Day"
+                                let cleanDate = dateMatch[0].trim();
+                                if (cleanDate.toLowerCase().startsWith('today')) {
+                                    cleanDate = 'Today';
+                                } else if (cleanDate.toLowerCase().startsWith('tomorrow')) {
+                                    cleanDate = 'Tomorrow';
                                 }
                                 
-                                if (foundDate) {
-                                    calendarData.push({ date: foundDate, flavor: flavorName });
+                                if (seenDates.has(cleanDate)) return;
+                                
+                                // Find the flavor link nearby
+                                let nextEl = h3.nextElementSibling;
+                                let attempts = 0;
+                                while (nextEl && attempts < 5) {
+                                    const flavorLink = nextEl.querySelector ? nextEl.querySelector('a[href*="flavor-of-the-day/"]') : null;
+                                    if (flavorLink) {
+                                        let flavorName = flavorLink.textContent.trim();
+                                        // If link text is empty or too short, extract from href
+                                        if (!flavorName || flavorName.length < 3) {
+                                            const hrefMatch = flavorLink.href.match(/flavor-of-the-day\/([^/?]+)/);
+                                            if (hrefMatch) {
+                                                flavorName = hrefMatch[1].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                                            }
+                                        }
+                                        if (flavorName && flavorName.length > 2) {
+                                            seenDates.add(cleanDate);
+                                            calendarData.push({ date: cleanDate, flavor: flavorName });
+                                            break;
+                                        }
+                                    }
+                                    nextEl = nextEl.nextElementSibling;
+                                    attempts++;
                                 }
                             }
                         });
