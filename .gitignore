@@ -1,0 +1,9 @@
+# Wrangler local state / build cache
+.wrangler/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS
+.DS_Store
