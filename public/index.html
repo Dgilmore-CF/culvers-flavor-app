@@ -310,31 +310,42 @@
                 localStorage.setItem('selectedCulversLocation', JSON.stringify(location));
             }
 
-            function renderNearbyLocations() {
-                nearbyList.innerHTML = '';
-                
-                nearbyLocations.forEach((loc, index) => {
-                    const isSelected = selectedLocation?.id === loc.id;
-                    const item = document.createElement('div');
-                    item.className = `location-item p-3 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'selected border-[#005695]' : 'border-gray-200'}`;
-                    item.innerHTML = `
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <p class="font-semibold text-gray-800 text-sm">${loc.name}</p>
-                                <p class="text-xs text-gray-500">${loc.address}</p>
-                            </div>
-                            <span class="text-xs text-gray-400">${loc.distance.toFixed(1)} mi</span>
+            // Build a single clickable location card (with its own listener).
+            function buildLocationItem(loc) {
+                const isSelected = selectedLocation?.id === loc.id;
+                const item = document.createElement('div');
+                item.className = `location-item p-3 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'selected border-[#005695]' : 'border-gray-200'}`;
+                item.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-semibold text-gray-800 text-sm">${loc.name}</p>
+                            <p class="text-xs text-gray-500">${loc.address}</p>
                         </div>
-                        <p class="text-sm text-[#005695] mt-1 font-medium">${loc.flavor}</p>
-                    `;
-                    item.addEventListener('click', () => {
-                        selectLocation(loc);
-                        renderNearbyLocations();
-                        nearbyContent.classList.add('hidden');
-                        nearbyIcon.style.transform = 'rotate(0deg)';
-                    });
-                    nearbyList.appendChild(item);
+                        <span class="text-xs text-gray-400">${loc.distance.toFixed(1)} mi</span>
+                    </div>
+                    <p class="text-sm text-[#005695] mt-1 font-medium">${loc.flavor}</p>
+                `;
+                item.addEventListener('click', () => {
+                    selectLocation(loc);
+                    // Refresh both lists so selection highlight is correct, then close them.
+                    renderNearbyLocations();
+                    nearbyContent.classList.add('hidden');
+                    nearbyIcon.style.transform = 'rotate(0deg)';
+                    locationList.classList.add('hidden');
                 });
+                return item;
+            }
+
+            // Populate a container with clickable location cards.
+            // NOTE: must rebuild items per-container so each gets its own
+            // click listener — copying innerHTML would drop the listeners.
+            function renderLocationItems(container) {
+                container.innerHTML = '';
+                nearbyLocations.forEach(loc => container.appendChild(buildLocationItem(loc)));
+            }
+
+            function renderNearbyLocations() {
+                renderLocationItems(nearbyList);
             }
 
             async function fetchCalendarData(locationId) {
@@ -493,7 +504,7 @@
             changeLocationBtn.addEventListener('click', () => {
                 locationList.classList.toggle('hidden');
                 if (!locationList.classList.contains('hidden')) {
-                    locationList.innerHTML = nearbyList.innerHTML;
+                    renderLocationItems(locationList);
                 }
             });
 
