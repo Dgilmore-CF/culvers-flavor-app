@@ -1,0 +1,13 @@
+{
+  "name": "culvers-flavor-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Culver's Flavor of the Day — Cloudflare Worker serving a static page and a same-origin culvers.com proxy.",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.53.0"
+  }
+}
